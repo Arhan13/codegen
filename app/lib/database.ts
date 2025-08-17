@@ -22,6 +22,7 @@ export interface ComponentEntry {
   code: string;
   user_prompt: string;
   extracted_keys: string[]; // JSON array of localization keys used in this component
+  demo_props?: string; // JSON string of component-specific demo props
   created_at?: string;
   updated_at?: string;
 }
@@ -122,6 +123,21 @@ export async function initializeDatabase(): Promise<void> {
       // Check if components table exists
       try {
         db.exec("SELECT 1 FROM components LIMIT 1");
+
+        // Check if demo_props column exists in existing table
+        try {
+          db.exec("SELECT demo_props FROM components LIMIT 1");
+          console.log("Components table exists with demo_props column");
+        } catch (columnError) {
+          console.log(
+            "Components table exists but missing demo_props column, adding it"
+          );
+          db.run(
+            "ALTER TABLE components ADD COLUMN demo_props TEXT DEFAULT '{}'"
+          );
+          // Save database after migration
+          saveDatabaseToLocalStorage();
+        }
       } catch (error) {
         console.log("Components table missing, will create it");
         needsComponentsTable = true;
@@ -166,6 +182,7 @@ export async function initializeDatabase(): Promise<void> {
             code TEXT NOT NULL,
             user_prompt TEXT NOT NULL,
             extracted_keys TEXT DEFAULT '[]',
+            demo_props TEXT DEFAULT '{}',
             created_at TEXT DEFAULT (datetime('now')),
             updated_at TEXT DEFAULT (datetime('now'))
           )
@@ -475,8 +492,9 @@ export async function getAllComponents(): Promise<ComponentEntry[]> {
     code: row[3] as string,
     user_prompt: row[4] as string,
     extracted_keys: JSON.parse(row[5] as string),
-    created_at: row[6] as string,
-    updated_at: row[7] as string,
+    demo_props: row[6] as string,
+    created_at: row[7] as string,
+    updated_at: row[8] as string,
   }));
 }
 
@@ -489,8 +507,8 @@ export async function createComponent(
 
   db!.run(
     `
-    INSERT INTO components (id, name, description, code, user_prompt, extracted_keys)
-    VALUES (?, ?, ?, ?, ?, ?)
+    INSERT INTO components (id, name, description, code, user_prompt, extracted_keys, demo_props)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
   `,
     [
       entry.id,
@@ -499,6 +517,7 @@ export async function createComponent(
       entry.code,
       entry.user_prompt,
       JSON.stringify(entry.extracted_keys),
+      entry.demo_props || "{}",
     ]
   );
 
@@ -580,8 +599,9 @@ export async function getComponent(id: string): Promise<ComponentEntry | null> {
     code: row[3] as string,
     user_prompt: row[4] as string,
     extracted_keys: JSON.parse(row[5] as string),
-    created_at: row[6] as string,
-    updated_at: row[7] as string,
+    demo_props: row[6] as string,
+    created_at: row[7] as string,
+    updated_at: row[8] as string,
   };
 }
 

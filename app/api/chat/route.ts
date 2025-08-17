@@ -1,27 +1,22 @@
 import { openai } from "@ai-sdk/openai";
 import { streamText, UIMessage, convertToModelMessages } from "ai";
 
-// Allow streaming responses up to 30 seconds
-export const maxDuration = 30;
-
 const SYSTEM_PROMPT = `You are a React component creator assistant. When users ask you to create React components, follow these guidelines:
 
 ABSOLUTELY NO IMPORTS FROM ANY OTHER FILES OR DIRECTORIES OR DEPENDENCIES. THIS IS AN ISOLATED ENVIRONMENT.
 
 ## Component Structure & Props
-Your components will be rendered in a preview environment with these available props:
-- \`items\`: Array of navigation items with \`label\` and \`href\` properties
-- \`children\`: Text content (usually "Click me" for buttons)
+Your components should handle their own text using the \`t()\` function:
+- \`t\`: Translation function - ALWAYS use \`t('semantic_key')\` for all user-facing text
 - \`onClick\`: Click handler function
-- \`title\`: Main title text (usually "Demo Title")
-- \`description\`: Description text
-- \`placeholder\`: Placeholder text for inputs
-- \`text\`: General text content
-- \`name\`: Name property
-- \`value\`: Value property
-- \`t\`: Translation function - use \`t('key')\` to get translated text
+- \`items\`: Array of navigation items (for nav components)
 
-Your component will be rendered as: \`<Component {...demoProps} />\`
+## Translation-First Design:
+- **NEVER use \`children\` for translatable text** - use \`t()\` instead
+- **NEVER hardcode text** - always use semantic keys
+- **Components are self-contained** - they handle their own translations
+
+Your component will be rendered as: \`<Component t={t} {...otherProps} />\`
 
 ## 🌍 Automatic Multi-Language System
 **CRITICAL: Always use t() function for ALL user-facing text!**
@@ -66,54 +61,65 @@ Your component will be rendered as: \`<Component {...demoProps} />\`
 9. Add meaningful props with TypeScript interfaces when needed
 10. Provide brief explanations of what the component does
 
-## Prop Usage Examples
-- For navigation: Use \`items.map(item => ...)\` to create nav links
-- For buttons: Use \`children\` as button text and \`onClick\` for click handlers
-- For cards: Use \`title\` and \`description\` for content
-- For forms: Use \`placeholder\` for input placeholders
+## Component Design Principles
+- **Self-contained text**: All user-facing text comes from \`t()\` calls
+- **Semantic keys**: Use descriptive keys like \`login_form_title\`, \`submit_button_text\`
+- **Context-aware**: Consider where text appears when naming keys
+- **No external text dependencies**: Components handle their own translations
 
 ## Simple Component Example:
 \`\`\`tsx
 import React from 'react';
 
-interface ButtonProps {
+interface ModernButtonProps {
   t: (key: string) => string;
   onClick?: () => void;
 }
 
-export default function ModernButton({ t, onClick }: ButtonProps) {
+export default function ModernButton({ t, onClick }: ModernButtonProps) {
   return (
-    <button 
+    <button
       onClick={onClick}
       className="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-6 rounded-lg transition-colors duration-200 shadow-md hover:shadow-lg"
     >
-      {t('click_me')}
+      {t('modern_button_label')}
     </button>
   );
 }
 \`\`\`
 
+**Key Points:**
+- NO \`children\` prop for text content
+- Component defines its own semantic keys
+- Completely self-contained translation handling
+
 ## Navigation Example:
 \`\`\`tsx
 import React from 'react';
 
-interface NavProps {
+interface NavigationProps {
   t: (key: string) => string;
-  items?: Array<{ labelKey: string; href: string }>;
 }
 
-export default function Navigation({ t, items = [] }: NavProps) {
+export default function Navigation({ t }: NavigationProps) {
+  const navItems = [
+    { href: '/home', key: 'nav_home' },
+    { href: '/about', key: 'nav_about' },
+    { href: '/services', key: 'nav_services' },
+    { href: '/contact', key: 'nav_contact' }
+  ];
+
   return (
     <nav className="bg-white shadow-lg">
       <div className="max-w-7xl mx-auto px-4">
         <div className="flex space-x-6 py-4">
-          {items.map((item, index) => (
+          {navItems.map((item) => (
             <a
-              key={index}
+              key={item.key}
               href={item.href}
               className="text-gray-700 hover:text-blue-600 font-medium transition-colors"
             >
-              {t(item.labelKey)}
+              {t(item.key)}
             </a>
           ))}
         </div>
@@ -123,7 +129,12 @@ export default function Navigation({ t, items = [] }: NavProps) {
 }
 \`\`\`
 
-Always be creative and make components that are visually appealing and functionally useful. Remember to use the available props effectively!`;
+**Key Points:**
+- Component defines its own navigation structure
+- Each nav item has its own translation key
+- No external dependencies for text content
+
+Always be creative and make components that are visually appealing and functionally useful!`;
 
 export async function POST(req: Request) {
   const { messages }: { messages: UIMessage[] } = await req.json();

@@ -259,11 +259,58 @@ function escapeRegExp(string: string): string {
 }
 
 /**
+ * Generate contextual demo props for a component based on its code and extracted keys
+ */
+async function generateDemoProps(
+  componentCode: string,
+  extractedTexts: ExtractedText[]
+): Promise<string> {
+  // Analyze component to generate appropriate demo props
+  const componentType = determineComponentType(componentCode);
+  const keys = extractedTexts.map((e) => e.key);
+
+  let demoProps: any = { t: "t" };
+
+  // Generate component-specific props based on type
+  if (componentType === "button") {
+    demoProps.onClick = "() => console.log('Button clicked!')";
+  } else if (componentType === "form") {
+    demoProps.onSubmit = "() => console.log('Form submitted!')";
+  } else if (componentType === "navigation") {
+    // Navigation components are self-contained with their own items
+  }
+
+  console.log(`🎭 Generated ${componentType} demo props:`, demoProps);
+  return JSON.stringify(demoProps);
+}
+
+/**
+ * Determine component type based on code analysis
+ */
+function determineComponentType(componentCode: string): string {
+  const code = componentCode.toLowerCase();
+
+  if (code.includes("<button") || code.includes("button")) return "button";
+  if (
+    code.includes("<form") ||
+    code.includes("<input") ||
+    code.includes("onsubmit")
+  )
+    return "form";
+  if (code.includes("<nav") || code.includes("navigation")) return "navigation";
+  if (code.includes("<card") || code.includes("card")) return "card";
+  if (code.includes("<modal") || code.includes("modal")) return "modal";
+
+  return "component";
+}
+
+/**
  * MAIN FUNCTION: Process component code with simplified LLM-based architecture
  * 1. Use LLM to extract texts and generate translations in one step
  * 2. Save translations to database
- * 3. Transform component to use t() calls
- * 4. Return transformed component that's self-contained
+ * 3. Generate component-specific demo props
+ * 4. Transform component to use t() calls
+ * 5. Return transformed component that's self-contained
  */
 export async function processComponentWithTranslations(
   originalComponentCode: string,
@@ -272,6 +319,7 @@ export async function processComponentWithTranslations(
   transformedCode: string;
   extractedTexts: ExtractedText[];
   savedKeys: string[];
+  demoProps: string;
 }> {
   console.log(
     "🚀 Processing component with simplified LLM-based architecture..."
@@ -290,7 +338,14 @@ export async function processComponentWithTranslations(
   );
   console.log(`💾 Saved ${savedKeys.length} translation keys to database`);
 
-  // Step 3: Transform the original component to use t() calls
+  // Step 3: Generate component-specific demo props
+  const demoProps = await generateDemoProps(
+    originalComponentCode,
+    extractedTexts
+  );
+  console.log("🎭 Generated contextual demo props");
+
+  // Step 4: Transform the original component to use t() calls
   const transformedCode = transformComponentCode(
     originalComponentCode,
     extractedTexts
@@ -303,5 +358,6 @@ export async function processComponentWithTranslations(
     transformedCode,
     extractedTexts,
     savedKeys,
+    demoProps,
   };
 }

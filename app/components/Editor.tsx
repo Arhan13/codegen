@@ -54,7 +54,7 @@ export default function Editor() {
       const componentId = `comp_${Date.now()}`;
 
       // NEW: Use unified processing function
-      const { transformedCode, extractedTexts, savedKeys } =
+      const { transformedCode, extractedTexts, savedKeys, demoProps } =
         await processComponentWithTranslations(componentCode, componentId);
 
       console.log("🎯 NEW ARCHITECTURE RESULTS:");
@@ -84,6 +84,7 @@ export default function Editor() {
           code: transformedCode, // ✅ Store transformed code, not original
           user_prompt: userPrompt,
           extracted_keys: savedKeys,
+          demo_props: demoProps, // ✅ Store generated demo props
         };
 
       // Save component to database

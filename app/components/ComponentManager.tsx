@@ -201,7 +201,10 @@ export default function ComponentManager() {
 
             {/* Component Preview */}
             <div className="flex-1">
-              <ComponentPreview componentCode={selectedComponent.code} />
+              <ComponentPreview
+                componentCode={selectedComponent.code}
+                demoProps={selectedComponent.demo_props}
+              />
             </div>
           </>
         ) : (

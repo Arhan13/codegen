@@ -6,10 +6,12 @@ import LocaleSelector from "./LocaleSelector";
 
 interface ComponentPreviewProps {
   componentCode: string;
+  demoProps?: string; // JSON string of component-specific demo props
 }
 
 export default function ComponentPreview({
   componentCode,
+  demoProps,
 }: ComponentPreviewProps) {
   const [processedCode, setProcessedCode] = useState<string>("");
   const [currentLocale, setCurrentLocale] = useState<string>("en");
@@ -124,29 +126,37 @@ ${translationEntries}
     return translations[key] || key;
   };
   
-  const demoProps = {
-    items: [
-      { label: 'Home', href: '#home' },
-      { label: 'About', href: '#about' },
-      { label: 'Services', href: '#services' },
-      { label: 'Contact', href: '#contact' }
-    ],
-    children: t('click_me') || 'Click me',
-    onClick: () => console.log('Button clicked!'),
-    title: t('demo_title') || 'Demo Title',
-    description: t('demo_description') || 'This is a demo description.',
-    placeholder: t('enter_text_here') || 'Enter text here...',
-    text: t('demo_text') || 'Demo text',
-    name: t('demo_name') || 'Demo Name',
-    value: t('demo_value') || 'Demo Value',
-    locale: '${currentLocale}',
-    t: t
-  };
+  // Parse component-specific demo props or use basic fallback
+  let parsedDemoProps = { t: t };
+  try {
+    const demoPropsString = ${JSON.stringify(demoProps || "{}")};
+    if (demoPropsString && demoPropsString !== '{}') {
+      const componentProps = JSON.parse(demoPropsString);
+      // Replace "t" string with actual function
+      parsedDemoProps = {
+        ...componentProps,
+        t: t // Always use the actual translation function
+      };
+      
+      // Convert function strings to actual functions
+      Object.keys(parsedDemoProps).forEach(key => {
+        const value = parsedDemoProps[key];
+        if (typeof value === 'string' && value.startsWith('() =>')) {
+          // Safely convert function strings to actual functions
+          parsedDemoProps[key] = new Function('return ' + value)();
+        }
+      });
+    }
+  } catch (error) {
+    console.warn('Failed to parse demo props, using fallback:', error);
+  }
+
+  const componentDemoProps = parsedDemoProps;
 
   try {
     return (
       <div style={{ padding: '20px', fontFamily: 'system-ui, sans-serif' }}>
-        <Component {...demoProps} />
+        <Component {...componentDemoProps} />
       </div>
     );
   } catch (error) {
