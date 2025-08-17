@@ -1,24 +1,86 @@
 "use client";
 
 import { useChat } from "@ai-sdk/react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import {
+  FolderOpen,
+  ChevronDown,
+  Sparkles,
+  Eye,
+  MessageCircle,
+  Globe,
+  Calendar,
+  Target,
+  Lightbulb,
+  Palette,
+  Cog,
+} from "lucide-react";
 import ComponentPreview from "./ComponentPreview";
 import { LocalizationDB, ComponentEntry } from "../lib/database";
 import { processComponentWithTranslations } from "../lib/textExtractor";
 
 export default function Editor() {
   const [input, setInput] = useState("");
-  const { messages, sendMessage } = useChat();
+  const { messages, sendMessage, setMessages } = useChat();
   const [currentComponent, setCurrentComponent] = useState<string>("");
+  const [currentComponentId, setCurrentComponentId] = useState<string | null>(
+    null
+  );
 
   const [savedComponents, setSavedComponents] = useState<ComponentEntry[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [showSavedComponents, setShowSavedComponents] = useState(false);
+  const [showComponentsDropdown, setShowComponentsDropdown] = useState(false);
   const [processedMessages, setProcessedMessages] = useState<Set<string>>(
     new Set()
   );
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // Load component's chat history into the current chat
+  const loadComponentChat = async (componentId: string) => {
+    try {
+      const db = LocalizationDB.getInstance();
+      const component = await db.getComponent(componentId);
+
+      if (component && component.chat_messages) {
+        const chatMessages = JSON.parse(component.chat_messages);
+        setMessages(chatMessages);
+        setCurrentComponentId(componentId);
+        setCurrentComponent(component.code);
+        console.log(
+          `💬 Loaded ${chatMessages.length} messages for component ${componentId}`
+        );
+      }
+    } catch (error) {
+      console.error("Error loading component chat:", error);
+    }
+  };
+
+  // Start a new conversation (clear chat history)
+  const startNewConversation = () => {
+    setMessages([]);
+    setCurrentComponentId(null);
+    setCurrentComponent("");
+    console.log("💬 Started new conversation");
+  };
+
+  // Save current messages back to the current component
+  const saveMessagesToCurrentComponent = useCallback(async () => {
+    if (!currentComponentId) return;
+
+    try {
+      const db = LocalizationDB.getInstance();
+      await db.updateComponent(currentComponentId, {
+        chat_messages: JSON.stringify(messages),
+      });
+      console.log(
+        `💾 Saved ${messages.length} messages to component ${currentComponentId}`
+      );
+    } catch (error) {
+      console.error("Error saving messages to component:", error);
+    }
+  }, [currentComponentId, messages]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (input.trim()) {
       sendMessage({
@@ -36,7 +98,7 @@ export default function Editor() {
     setIsProcessing(true);
     try {
       console.log(
-        "🔍 Processing component with NEW architecture:",
+        "Processing component with NEW architecture:",
         componentCode.substring(0, 200) + "..."
       );
 
@@ -55,7 +117,7 @@ export default function Editor() {
       const { transformedCode, extractedTexts, savedKeys, demoProps } =
         await processComponentWithTranslations(componentCode, componentId);
 
-      console.log("🎯 NEW ARCHITECTURE RESULTS:");
+      console.log("NEW ARCHITECTURE RESULTS:");
       console.log("- Original code length:", componentCode.length);
       console.log("- Transformed code length:", transformedCode.length);
       console.log(
@@ -79,10 +141,11 @@ export default function Editor() {
           id: componentId,
           name: componentName,
           description: userPrompt,
-          code: transformedCode, // ✅ Store transformed code, not original
+          code: transformedCode, // Store transformed code, not original
           user_prompt: userPrompt,
+          chat_messages: JSON.stringify(messages), // Save chat history with component
           extracted_keys: savedKeys,
-          demo_props: demoProps, // ✅ Store generated demo props
+          demo_props: demoProps, // Store generated demo props
         };
 
       // Save component to database
@@ -91,6 +154,7 @@ export default function Editor() {
 
       // Set the TRANSFORMED code as current component for preview
       setCurrentComponent(transformedCode);
+      setCurrentComponentId(componentId);
 
       // Add to local state
       const newComponent: ComponentEntry = {
@@ -102,7 +166,7 @@ export default function Editor() {
       setSavedComponents((prev) => [newComponent, ...prev]);
 
       console.log(
-        `✅ NEW ARCHITECTURE: Processed ${componentName}, extracted ${extractedTexts.length} texts, code transformed and saved`
+        `NEW ARCHITECTURE: Processed ${componentName}, extracted ${extractedTexts.length} texts, code transformed and saved`
       );
     } catch (error) {
       console.error("Error processing component:", error);
@@ -126,6 +190,37 @@ export default function Editor() {
   useEffect(() => {
     loadSavedComponents();
   }, []);
+
+  // Auto-save messages to current component when messages change
+  useEffect(() => {
+    if (currentComponentId && messages.length > 0) {
+      // Debounce to avoid excessive database writes
+      const timeoutId = setTimeout(() => {
+        saveMessagesToCurrentComponent();
+      }, 1000);
+
+      return () => clearTimeout(timeoutId);
+    }
+  }, [messages, currentComponentId, saveMessagesToCurrentComponent]);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node)
+      ) {
+        setShowComponentsDropdown(false);
+      }
+    }
+
+    if (showComponentsDropdown) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => {
+        document.removeEventListener("mousedown", handleClickOutside);
+      };
+    }
+  }, [showComponentsDropdown]);
 
   // Extract React component code from AI responses
   useEffect(() => {
@@ -181,68 +276,171 @@ export default function Editor() {
                 <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
                   React Component Creator
                 </h1>
-                <button
-                  onClick={() => setShowSavedComponents(!showSavedComponents)}
-                  className="px-3 py-1 text-sm bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-md transition-colors"
-                >
-                  {showSavedComponents ? "Hide" : "Show"} Saved (
-                  {savedComponents.length})
-                </button>
+                <div className="relative" ref={dropdownRef}>
+                  <button
+                    onClick={() =>
+                      setShowComponentsDropdown(!showComponentsDropdown)
+                    }
+                    className="px-4 py-2 text-sm bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg font-medium transition-colors flex items-center space-x-2"
+                  >
+                    <FolderOpen className="w-4 h-4" />
+                    <span>Component History ({savedComponents.length})</span>
+                    <ChevronDown
+                      className={`w-4 h-4 transition-transform ${
+                        showComponentsDropdown ? "rotate-180" : ""
+                      }`}
+                    />
+                  </button>
+
+                  {/* Dropdown Menu */}
+                  {showComponentsDropdown && (
+                    <div className="absolute right-0 mt-2 w-96 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-600 z-50 max-h-96 overflow-y-auto">
+                      <div className="p-4 border-b border-gray-200 dark:border-gray-600">
+                        <div className="flex items-center justify-between">
+                          <h3 className="font-semibold text-gray-900 dark:text-white">
+                            Recent
+                          </h3>
+                          <button
+                            onClick={startNewConversation}
+                            className="px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white text-xs rounded-lg font-medium transition-colors flex items-center space-x-1"
+                          >
+                            <Sparkles className="w-3 h-3" />
+                            <span>New</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {savedComponents.length === 0 ? (
+                        <div className="p-6 text-center">
+                          <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center mx-auto mb-3">
+                            <Palette className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+                          </div>
+                          <p className="text-gray-600 dark:text-gray-400 text-sm">
+                            No components yet! Start by describing what you want
+                            to build.
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="max-h-80 overflow-y-auto">
+                          {savedComponents.map((component) => {
+                            const chatMessages = component.chat_messages
+                              ? JSON.parse(component.chat_messages)
+                              : [];
+                            const isActive =
+                              currentComponentId === component.id;
+
+                            return (
+                              <div
+                                key={component.id}
+                                className={`p-3 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${
+                                  isActive
+                                    ? "bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-700"
+                                    : ""
+                                }`}
+                              >
+                                <div className="flex items-start justify-between">
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center space-x-2 mb-1">
+                                      <h4
+                                        className={`font-medium text-sm truncate ${
+                                          isActive
+                                            ? "text-blue-700 dark:text-blue-300"
+                                            : "text-gray-900 dark:text-white"
+                                        }`}
+                                      >
+                                        {component.name}
+                                      </h4>
+                                      {isActive && (
+                                        <span className="px-1.5 py-0.5 bg-blue-500 text-white text-xs rounded font-medium">
+                                          Active
+                                        </span>
+                                      )}
+                                    </div>
+                                    <p className="text-xs text-gray-600 dark:text-gray-300 mb-2 line-clamp-1">
+                                      {component.description}
+                                    </p>
+                                    <div className="flex items-center space-x-3 text-xs text-gray-500 dark:text-gray-400">
+                                      <span className="flex items-center space-x-1">
+                                        <Globe className="w-3 h-3" />
+                                        <span>
+                                          {component.extracted_keys.length}
+                                        </span>
+                                      </span>
+                                      <span className="flex items-center space-x-1">
+                                        <MessageCircle className="w-3 h-3" />
+                                        <span>{chatMessages.length}</span>
+                                      </span>
+                                      <span className="flex items-center space-x-1">
+                                        <Calendar className="w-3 h-3" />
+                                        <span>
+                                          {new Date(
+                                            component.created_at || ""
+                                          ).toLocaleDateString()}
+                                        </span>
+                                      </span>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center space-x-1 ml-3">
+                                    <button
+                                      onClick={() => {
+                                        setCurrentComponent(component.code);
+                                        setCurrentComponentId(component.id);
+                                        setShowComponentsDropdown(false);
+                                      }}
+                                      className="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 dark:bg-gray-600 dark:hover:bg-gray-500 dark:text-gray-300 rounded font-medium transition-colors"
+                                    >
+                                      <Eye className="w-3 h-3" />
+                                    </button>
+                                    {chatMessages.length > 0 && (
+                                      <button
+                                        onClick={() => {
+                                          loadComponentChat(component.id);
+                                          setShowComponentsDropdown(false);
+                                        }}
+                                        className="px-2 py-1 text-xs bg-green-500 hover:bg-green-600 text-white rounded font-medium transition-colors"
+                                      >
+                                        <MessageCircle className="w-3 h-3" />
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
               <p className="text-gray-600 dark:text-gray-400">
                 Describe the React component you want to create, and I&apos;ll
                 build it for you with a live preview. Components are
                 automatically saved and text is extracted for localization.
                 {isProcessing && (
-                  <span className="ml-2 text-blue-600 font-medium">
-                    ⚙️ Processing component...
+                  <span className="ml-2 text-blue-600 font-medium flex items-center space-x-1">
+                    <Cog className="w-4 h-4 animate-spin" />
+                    <span>Processing component...</span>
                   </span>
                 )}
               </p>
-            </div>
 
-            {/* Saved Components Section */}
-            {showSavedComponents && (
-              <div className="mb-6 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                <h3 className="font-semibold text-gray-900 dark:text-white mb-3">
-                  Saved Components
-                </h3>
-                {savedComponents.length === 0 ? (
-                  <p className="text-gray-500 text-sm">
-                    No saved components yet. Create one to get started!
+              {currentComponentId && (
+                <div className="mt-3 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-700">
+                  <p className="text-sm text-green-700 dark:text-green-300 flex items-center space-x-2">
+                    <Target className="w-4 h-4" />
+                    <span>
+                      Continue working on:{" "}
+                      <strong>
+                        {savedComponents.find(
+                          (c) => c.id === currentComponentId
+                        )?.name || "Component"}
+                      </strong>
+                    </span>
                   </p>
-                ) : (
-                  <div className="space-y-2">
-                    {savedComponents.slice(0, 5).map((component) => (
-                      <div
-                        key={component.id}
-                        className="flex items-center justify-between p-2 bg-white dark:bg-gray-700 rounded border"
-                      >
-                        <div className="flex-1 min-w-0">
-                          <div className="font-medium text-sm text-gray-900 dark:text-white truncate">
-                            {component.name}
-                          </div>
-                          <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                            {component.description}
-                          </div>
-                          <div className="text-xs text-blue-600 mt-1">
-                            {component.extracted_keys.length} translation keys
-                          </div>
-                        </div>
-                        <button
-                          onClick={() => {
-                            setCurrentComponent(component.code);
-                          }}
-                          className="ml-2 px-2 py-1 text-xs bg-blue-500 hover:bg-blue-600 text-white rounded transition-colors"
-                        >
-                          Load
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
+                </div>
+              )}
+            </div>
 
             {messages.length === 0 && (
               <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-6 mb-6">

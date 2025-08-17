@@ -26,7 +26,7 @@ export async function extractLocalizationKeys(
   componentCode: string
 ): Promise<ExtractedText[]> {
   try {
-    console.log("🔍 Extracting t() calls from component code...");
+    console.log("Extracting t() calls from component code...");
 
     // Find all t() calls with various quote styles
     const tCallRegex = /t\(['"`]([^'"`]+)['"`]\)/g;
@@ -48,7 +48,7 @@ export async function extractLocalizationKeys(
     }
 
     console.log(
-      `✅ Found ${extractedTexts.length} t() calls:`,
+      `Found ${extractedTexts.length} t() calls:`,
       extractedTexts.map((e) => ({ key: e.key, context: e.context }))
     );
 
@@ -60,7 +60,7 @@ export async function extractLocalizationKeys(
 
     return extractedTexts;
   } catch (error) {
-    console.error("❌ t() extraction error:", error);
+    console.error("t() extraction error:", error);
     return [];
   }
 }
@@ -119,7 +119,7 @@ async function translateKeys(
     });
 
     if (!response.ok) {
-      console.warn("⚠️ Translation API failed, using keys as fallback");
+      console.warn("Translation API failed, using keys as fallback");
       return extractedTexts;
     }
 
@@ -134,7 +134,7 @@ async function translateKeys(
 
     return extractedTexts;
   } catch (error) {
-    console.error("❌ Translation error:", error);
+    console.error("Translation error:", error);
     return extractedTexts;
   }
 }
@@ -163,7 +163,7 @@ export async function processAndSaveExtractedTexts(
         const translations = extracted.translations;
 
         if (!translations) {
-          console.warn(`⚠️ No translations provided for key: ${extracted.key}`);
+          console.warn(`No translations provided for key: ${extracted.key}`);
           continue;
         }
 
@@ -182,19 +182,16 @@ export async function processAndSaveExtractedTexts(
         await db.create(newEntry);
         savedKeys.push(extracted.key);
         console.log(
-          `💾 Saved translations for "${extracted.key}":`,
+          `Saved translations for "${extracted.key}":`,
           `EN: "${translations.en}" | ES: "${translations.es}" | FR: "${translations.fr}"`
         );
       } else {
         // Key exists, just add to saved keys
         savedKeys.push(extracted.key);
-        console.log(`🔄 Key "${extracted.key}" already exists in database`);
+        console.log(`Key "${extracted.key}" already exists in database`);
       }
     } catch (error) {
-      console.error(
-        `❌ Error saving localization key ${extracted.key}:`,
-        error
-      );
+      console.error(`Error saving localization key ${extracted.key}:`, error);
     }
   }
 
@@ -217,7 +214,7 @@ export function transformComponentCode(
 
   if (!hasInterface || !hasTProps) {
     console.log(
-      "⚠️ Component missing proper t() prop typing - this should be rare with new system prompt"
+      "Component missing proper t() prop typing - this should be rare with new system prompt"
     );
 
     // Add minimal interface if completely missing
@@ -241,13 +238,11 @@ interface ${componentName}Props {
     }
   }
 
-  console.log(
-    `✅ Component validated - found ${extractedTexts.length} t() calls`
-  );
+  console.log(`Component validated - found ${extractedTexts.length} t() calls`);
 
   // DEBUG: Show key information
   console.log(
-    "🔍 EXTRACTED KEYS:",
+    "EXTRACTED KEYS:",
     extractedTexts.map((e) => e.key)
   );
 
@@ -331,7 +326,7 @@ async function ensureNavigationTranslations(): Promise<void> {
       }
     }
   } catch (error) {
-    console.warn("⚠️ Failed to ensure navigation translations:", error);
+    console.warn("Failed to ensure navigation translations:", error);
   }
 }
 
@@ -395,20 +390,20 @@ export async function processComponentWithTranslations(
     extractedTexts,
     componentId
   );
-  console.log(`💾 Saved ${savedKeys.length} translation keys to database`);
+  console.log(`Saved ${savedKeys.length} translation keys to database`);
 
   // Step 3: Generate component-specific demo props
   const demoProps = await generateDemoProps(originalComponentCode);
-  console.log("🎭 Generated contextual demo props");
+  console.log("Generated contextual demo props");
 
   // Step 4: Transform the original component to use t() calls
   const transformedCode = transformComponentCode(
     originalComponentCode,
     extractedTexts
   );
-  console.log("🔄 Component code transformed to use t() calls");
+  console.log("Component code transformed to use t() calls");
 
-  console.log("✅ Component processing complete with LLM-based approach!");
+  console.log("Component processing complete with LLM-based approach!");
 
   return {
     transformedCode,

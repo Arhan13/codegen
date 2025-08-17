@@ -28,6 +28,7 @@ export interface ComponentEntry {
   description: string;
   code: string;
   user_prompt: string;
+  chat_messages: string; // JSON string of chat messages array for THIS component
   extracted_keys: string[]; // JSON array of localization keys used in this component
   demo_props?: string; // JSON string of component-specific demo props
   created_at?: string;
@@ -145,6 +146,21 @@ export async function initializeDatabase(): Promise<void> {
           // Save database after migration
           saveDatabaseToLocalStorage();
         }
+
+        // Check if chat_messages column exists in existing table
+        try {
+          db.exec("SELECT chat_messages FROM components LIMIT 1");
+          console.log("Components table exists with chat_messages column");
+        } catch {
+          console.log(
+            "Components table exists but missing chat_messages column, adding it"
+          );
+          db.run(
+            "ALTER TABLE components ADD COLUMN chat_messages TEXT DEFAULT '[]'"
+          );
+          // Save database after migration
+          saveDatabaseToLocalStorage();
+        }
       } catch {
         console.log("Components table missing, will create it");
         needsComponentsTable = true;
@@ -188,6 +204,7 @@ export async function initializeDatabase(): Promise<void> {
             description TEXT DEFAULT '',
             code TEXT NOT NULL,
             user_prompt TEXT NOT NULL,
+            chat_messages TEXT DEFAULT '[]',
             extracted_keys TEXT DEFAULT '[]',
             demo_props TEXT DEFAULT '{}',
             created_at TEXT DEFAULT (datetime('now')),
@@ -498,10 +515,11 @@ export async function getAllComponents(): Promise<ComponentEntry[]> {
     description: row[2] as string,
     code: row[3] as string,
     user_prompt: row[4] as string,
-    extracted_keys: JSON.parse(row[5] as string),
-    demo_props: row[6] as string,
-    created_at: row[7] as string,
-    updated_at: row[8] as string,
+    chat_messages: row[5] as string,
+    extracted_keys: JSON.parse(row[6] as string),
+    demo_props: row[7] as string,
+    created_at: row[8] as string,
+    updated_at: row[9] as string,
   }));
 }
 
@@ -514,8 +532,8 @@ export async function createComponent(
 
   db!.run(
     `
-    INSERT INTO components (id, name, description, code, user_prompt, extracted_keys, demo_props)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO components (id, name, description, code, user_prompt, chat_messages, extracted_keys, demo_props)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `,
     [
       entry.id,
@@ -523,6 +541,7 @@ export async function createComponent(
       entry.description,
       entry.code,
       entry.user_prompt,
+      entry.chat_messages || "[]",
       JSON.stringify(entry.extracted_keys),
       entry.demo_props || "{}",
     ]
@@ -605,10 +624,11 @@ export async function getComponent(id: string): Promise<ComponentEntry | null> {
     description: row[2] as string,
     code: row[3] as string,
     user_prompt: row[4] as string,
-    extracted_keys: JSON.parse(row[5] as string),
-    demo_props: row[6] as string,
-    created_at: row[7] as string,
-    updated_at: row[8] as string,
+    chat_messages: row[5] as string,
+    extracted_keys: JSON.parse(row[6] as string),
+    demo_props: row[7] as string,
+    created_at: row[8] as string,
+    updated_at: row[9] as string,
   };
 }
 
@@ -626,7 +646,7 @@ export function resetDatabase(): void {
     db.close();
     db = null;
   }
-  console.log("🗑️ Database reset - localStorage cleared");
+  console.log("Database reset - localStorage cleared");
 }
 
 // Helper function to clear only components table (keep translations)
