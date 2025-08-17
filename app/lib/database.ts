@@ -1,5 +1,12 @@
 import initSqlJs, { Database } from "sql.js";
 
+// Type for debugging functions exposed to window
+type WindowWithDebugUtils = typeof window & {
+  resetDB: typeof resetDatabase;
+  clearComponents: typeof clearComponents;
+  checkDB: () => Promise<void>;
+};
+
 let db: Database | null = null;
 
 export interface LocalizationEntry {
@@ -128,7 +135,7 @@ export async function initializeDatabase(): Promise<void> {
         try {
           db.exec("SELECT demo_props FROM components LIMIT 1");
           console.log("Components table exists with demo_props column");
-        } catch (columnError) {
+        } catch {
           console.log(
             "Components table exists but missing demo_props column, adding it"
           );
@@ -138,7 +145,7 @@ export async function initializeDatabase(): Promise<void> {
           // Save database after migration
           saveDatabaseToLocalStorage();
         }
-      } catch (error) {
+      } catch {
         console.log("Components table missing, will create it");
         needsComponentsTable = true;
       }
@@ -640,9 +647,9 @@ export function clearComponents(): void {
 
 // Expose utility functions to window for debugging
 if (typeof window !== "undefined") {
-  (window as any).resetDB = resetDatabase;
-  (window as any).clearComponents = clearComponents;
-  (window as any).checkDB = async () => {
+  (window as WindowWithDebugUtils).resetDB = resetDatabase;
+  (window as WindowWithDebugUtils).clearComponents = clearComponents;
+  (window as WindowWithDebugUtils).checkDB = async () => {
     if (!db) {
       await initializeDatabase();
     }

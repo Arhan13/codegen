@@ -10,9 +10,7 @@ export default function Editor() {
   const [input, setInput] = useState("");
   const { messages, sendMessage } = useChat();
   const [currentComponent, setCurrentComponent] = useState<string>("");
-  const [currentComponentId, setCurrentComponentId] = useState<string | null>(
-    null
-  );
+
   const [savedComponents, setSavedComponents] = useState<ComponentEntry[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showSavedComponents, setShowSavedComponents] = useState(false);
@@ -90,9 +88,6 @@ export default function Editor() {
       // Save component to database
       const db = LocalizationDB.getInstance();
       await db.createComponent(componentEntry);
-
-      // Update current component ID
-      setCurrentComponentId(componentId);
 
       // Set the TRANSFORMED code as current component for preview
       setCurrentComponent(transformedCode);
@@ -237,7 +232,6 @@ export default function Editor() {
                         <button
                           onClick={() => {
                             setCurrentComponent(component.code);
-                            setCurrentComponentId(component.id);
                           }}
                           className="ml-2 px-2 py-1 text-xs bg-blue-500 hover:bg-blue-600 text-white rounded transition-colors"
                         >

@@ -254,22 +254,14 @@ interface ${componentName}Props {
   return transformedCode;
 }
 
-function escapeRegExp(string: string): string {
-  return string.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
 /**
  * Generate contextual demo props for a component based on its code and extracted keys
  */
-async function generateDemoProps(
-  componentCode: string,
-  extractedTexts: ExtractedText[]
-): Promise<string> {
+async function generateDemoProps(componentCode: string): Promise<string> {
   // Analyze component to generate appropriate demo props
   const componentType = determineComponentType(componentCode);
-  const keys = extractedTexts.map((e) => e.key);
 
-  let demoProps: any = { t: "t" };
+  const demoProps: Record<string, unknown> = { t: "t" };
 
   // Generate component-specific props based on type
   if (componentType === "button") {
@@ -330,7 +322,7 @@ async function ensureNavigationTranslations(): Promise<void> {
               console.log(
                 `🧭 Added navigation translation: ${navKey.key} → ${translations.en}`
               );
-            } catch (dbError) {
+            } catch {
               // Key might already exist, that's okay
               console.log(`🧭 Navigation key ${navKey.key} already exists`);
             }
@@ -406,10 +398,7 @@ export async function processComponentWithTranslations(
   console.log(`💾 Saved ${savedKeys.length} translation keys to database`);
 
   // Step 3: Generate component-specific demo props
-  const demoProps = await generateDemoProps(
-    originalComponentCode,
-    extractedTexts
-  );
+  const demoProps = await generateDemoProps(originalComponentCode);
   console.log("🎭 Generated contextual demo props");
 
   // Step 4: Transform the original component to use t() calls
