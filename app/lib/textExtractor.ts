@@ -277,11 +277,70 @@ async function generateDemoProps(
   } else if (componentType === "form") {
     demoProps.onSubmit = "() => console.log('Form submitted!')";
   } else if (componentType === "navigation") {
-    // Navigation components are self-contained with their own items
+    // Navigation components need their navigation item keys to be translated
+    console.log("🧭 Navigation component detected - ensuring nav keys exist");
+    await ensureNavigationTranslations();
   }
 
   console.log(`🎭 Generated ${componentType} demo props:`, demoProps);
   return JSON.stringify(demoProps);
+}
+
+/**
+ * Ensure common navigation translation keys exist
+ */
+async function ensureNavigationTranslations(): Promise<void> {
+  const commonNavKeys = [
+    { key: "nav_home", context: "navigation" },
+    { key: "nav_about", context: "navigation" },
+    { key: "nav_services", context: "navigation" },
+    { key: "nav_contact", context: "navigation" },
+  ];
+
+  try {
+    const response = await fetch("/api/extract-and-translate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        keys: commonNavKeys,
+      }),
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      if (data.success && data.translations) {
+        // Save navigation translations to database
+        const db = LocalizationDB.getInstance();
+
+        for (const navKey of commonNavKeys) {
+          const translations = data.translations[navKey.key];
+          if (translations) {
+            try {
+              const newEntry = {
+                id: `nav_${navKey.key}_${Date.now()}`,
+                key: navKey.key,
+                en: translations.en,
+                es: translations.es,
+                fr: translations.fr,
+                de: translations.de,
+                ja: translations.ja,
+                zh: translations.zh,
+              };
+              await db.create(newEntry);
+              console.log(
+                `🧭 Added navigation translation: ${navKey.key} → ${translations.en}`
+              );
+            } catch (dbError) {
+              // Key might already exist, that's okay
+              console.log(`🧭 Navigation key ${navKey.key} already exists`);
+            }
+          }
+        }
+      }
+    }
+  } catch (error) {
+    console.warn("⚠️ Failed to ensure navigation translations:", error);
+  }
 }
 
 /**
@@ -290,16 +349,24 @@ async function generateDemoProps(
 function determineComponentType(componentCode: string): string {
   const code = componentCode.toLowerCase();
 
-  if (code.includes("<button") || code.includes("button")) return "button";
+  // Check more specific components first
+  if (
+    code.includes("<nav") ||
+    code.includes("navigation") ||
+    code.includes("navbar") ||
+    code.includes("menu")
+  )
+    return "navigation";
   if (
     code.includes("<form") ||
     code.includes("<input") ||
     code.includes("onsubmit")
   )
     return "form";
-  if (code.includes("<nav") || code.includes("navigation")) return "navigation";
   if (code.includes("<card") || code.includes("card")) return "card";
   if (code.includes("<modal") || code.includes("modal")) return "modal";
+  // Check button last since many components contain buttons
+  if (code.includes("<button") || code.includes("button")) return "button";
 
   return "component";
 }
