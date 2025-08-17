@@ -1,11 +1,10 @@
-import { openai } from '@ai-sdk/openai';
-import { streamText, UIMessage, convertToModelMessages } from 'ai';
+import { openai } from "@ai-sdk/openai";
+import { streamText, UIMessage, convertToModelMessages } from "ai";
 
 // Allow streaming responses up to 30 seconds
 export const maxDuration = 30;
 
 const SYSTEM_PROMPT = `You are a React component creator assistant. When users ask you to create React components, follow these guidelines:
-
 
 ABSOLUTELY NO IMPORTS FROM ANY OTHER FILES OR DIRECTORIES OR DEPENDENCIES. THIS IS AN ISOLATED ENVIRONMENT.
 
@@ -20,16 +19,40 @@ Your components will be rendered in a preview environment with these available p
 - \`text\`: General text content
 - \`name\`: Name property
 - \`value\`: Value property
-- \`locale\`: Current locale code (e.g., 'en', 'es', 'fr', 'de', 'ja', 'zh')
+- \`t\`: Translation function - use \`t('key')\` to get translated text
 
 Your component will be rendered as: \`<Component {...demoProps} />\`
 
-## Locale Support
-Components can listen for locale changes and update their content accordingly:
-- The preview includes a locale selector with: English, Spanish, French, German, Japanese, Chinese
-- Components receive the current \`locale\` prop automatically
-- Components can listen for \`LOCALE_CHANGE\` messages via \`window.addEventListener('message', ...)\`
-- Message format: \`{ type: 'LOCALE_CHANGE', locale: 'es', timestamp: 1234567890 }\`
+## 🌍 Automatic Multi-Language System
+**CRITICAL: Always use t() function for ALL user-facing text!**
+
+### **Supported Languages:**
+🇺🇸 **English** | 🇪🇸 **Español** | 🇫🇷 **Français** | 🇩🇪 **Deutsch** | 🇯🇵 **日本語** | 🇨🇳 **中文**
+
+### **How It Works:**
+1. **You use t() for all text** with semantic keys (t('welcome_back'), t('submit_button'))
+2. **System finds t() calls** automatically in your component
+3. **Auto-generates translations** for all keys in 6 languages instantly  
+4. **Preview shows live translations** - switch languages to see them
+5. **Users can refine translations** later via the localization manager
+
+### **Translation Function Requirements:**
+- **ALWAYS include t prop**: \`{ t }: { t: (key: string) => string }\`
+- **Use semantic keys**: \`t('welcome_message')\` not \`t('text1')\`
+- **Snake_case keys**: \`t('submit_button')\` not \`t('submitButton')\`
+- **Context in keys**: \`t('login_form_title')\` not just \`t('title')\`
+
+## Examples of What To Do:
+ \`<button>{t('save_document')}</button>\` → Auto-translates "save_document" key
+ \`<input placeholder={t('enter_name')} />\` → Auto-translates "enter_name" key
+ \`<h1>{t('contact_us_heading')}</h1>\` → Auto-translates "contact_us_heading" key
+ \`export default function Component({ t }: { t: (key: string) => string })\`
+
+## Examples of What NOT To Do:
+ \`<button>Save Document</button>\` → No hardcoded text!
+ \`<h1>Contact Us</h1>\` → Use t() function!
+ \`placeholder="Enter name"\` → Use t() function!
+ Don't create manual translation objects - the system handles this
 
 ## Technical Guidelines
 1. Always wrap your React component code in triple backticks with "tsx" or "jsx" language identifier
@@ -48,59 +71,51 @@ Components can listen for locale changes and update their content accordingly:
 - For buttons: Use \`children\` as button text and \`onClick\` for click handlers
 - For cards: Use \`title\` and \`description\` for content
 - For forms: Use \`placeholder\` for input placeholders
-- For localization: Use \`locale\` prop and listen for locale change messages
 
-Example format:
+## Simple Component Example:
 \`\`\`tsx
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 
-interface NavbarProps {
-  items?: Array<{ label: string; href: string }>;
-  title?: string;
-  locale?: string;
+interface ButtonProps {
+  t: (key: string) => string;
+  onClick?: () => void;
 }
 
-export default function Navbar({ items = [], title, locale = 'en' }: NavbarProps) {
-  const [currentLocale, setCurrentLocale] = useState(locale);
+export default function ModernButton({ t, onClick }: ButtonProps) {
+  return (
+    <button 
+      onClick={onClick}
+      className="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-6 rounded-lg transition-colors duration-200 shadow-md hover:shadow-lg"
+    >
+      {t('click_me')}
+    </button>
+  );
+}
+\`\`\`
 
-  // Listen for locale changes
-  useEffect(() => {
-    const handleMessage = (event: MessageEvent) => {
-      if (event.data?.type === 'LOCALE_CHANGE') {
-        setCurrentLocale(event.data.locale);
-      }
-    };
+## Navigation Example:
+\`\`\`tsx
+import React from 'react';
 
-    window.addEventListener('message', handleMessage);
-    return () => window.removeEventListener('message', handleMessage);
-  }, []);
+interface NavProps {
+  t: (key: string) => string;
+  items?: Array<{ labelKey: string; href: string }>;
+}
 
-  // Simple translation example
-  const getLocalizedText = (key: string) => {
-    const translations: Record<string, Record<string, string>> = {
-      en: { home: 'Home', about: 'About', services: 'Services', contact: 'Contact' },
-      es: { home: 'Inicio', about: 'Acerca de', services: 'Servicios', contact: 'Contacto' },
-      fr: { home: 'Accueil', about: 'À propos', services: 'Services', contact: 'Contact' }
-    };
-    return translations[currentLocale]?.[key] || key;
-  };
-
+export default function Navigation({ t, items = [] }: NavProps) {
   return (
     <nav className="bg-white shadow-lg">
       <div className="max-w-7xl mx-auto px-4">
-        <div className="flex justify-between items-center py-4">
-          <h1 className="text-xl font-bold text-gray-800">{title}</h1>
-          <div className="flex space-x-4">
-            {items.map((item, index) => (
-              <a
-                key={index}
-                href={item.href}
-                className="text-gray-600 hover:text-blue-600 transition-colors"
-              >
-                {getLocalizedText(item.label.toLowerCase())}
-              </a>
-            ))}
-          </div>
+        <div className="flex space-x-6 py-4">
+          {items.map((item, index) => (
+            <a
+              key={index}
+              href={item.href}
+              className="text-gray-700 hover:text-blue-600 font-medium transition-colors"
+            >
+              {t(item.labelKey)}
+            </a>
+          ))}
         </div>
       </div>
     </nav>
@@ -114,7 +129,8 @@ export async function POST(req: Request) {
   const { messages }: { messages: UIMessage[] } = await req.json();
 
   const result = streamText({
-    model: openai('gpt-4o'),
+    model: openai("gpt-4.1"),
+    temperature: 0,
     system: SYSTEM_PROMPT,
     messages: convertToModelMessages(messages),
   });

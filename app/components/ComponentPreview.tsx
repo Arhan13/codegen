@@ -1,55 +1,78 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { SandpackProvider, SandpackPreview } from '@codesandbox/sandpack-react';
-import LocaleSelector from './LocaleSelector';
+import { useState, useEffect } from "react";
+import { SandpackProvider, SandpackPreview } from "@codesandbox/sandpack-react";
+import LocaleSelector from "./LocaleSelector";
 
 interface ComponentPreviewProps {
   componentCode: string;
 }
 
-export default function ComponentPreview({ componentCode }: ComponentPreviewProps) {
-  const [processedCode, setProcessedCode] = useState<string>('');
-  const [currentLocale, setCurrentLocale] = useState<string>('en');
+export default function ComponentPreview({
+  componentCode,
+}: ComponentPreviewProps) {
+  const [processedCode, setProcessedCode] = useState<string>("");
+  const [currentLocale, setCurrentLocale] = useState<string>("en");
+  const [translations, setTranslations] = useState<Record<string, string>>({});
+
+  // Load translations for the current locale
+  useEffect(() => {
+    const loadTranslations = async () => {
+      try {
+        const { LocalizationDB } = await import("../lib/database");
+        const db = LocalizationDB.getInstance();
+        const localeTranslations = await db.getTranslations(currentLocale);
+        setTranslations(localeTranslations);
+      } catch (error) {
+        console.error("Error loading translations for preview:", error);
+      }
+    };
+
+    loadTranslations();
+  }, [currentLocale]);
 
   useEffect(() => {
     if (!componentCode.trim()) {
-      setProcessedCode('');
+      setProcessedCode("");
       return;
     }
 
     // Process the component code for Sandpack
     let code = componentCode.trim();
-    
+
     if (code) {
       // Ensure React import is present
-      if (!code.includes('import React') && !code.includes('import * as React')) {
+      if (
+        !code.includes("import React") &&
+        !code.includes("import * as React")
+      ) {
         code = `import React from 'react';\n${code}`;
       }
-      
+
       // Simple hook detection and import fixing
       const needsHooks = [];
-      if (code.includes('useState') && !code.includes('{ useState')) {
-        needsHooks.push('useState');
+      if (code.includes("useState") && !code.includes("{ useState")) {
+        needsHooks.push("useState");
       }
-      if (code.includes('useEffect') && !code.includes('{ useEffect')) {
-        needsHooks.push('useEffect');
-      }
-      
-      if (needsHooks.length > 0) {
-        code = code.replace(
-          'import React from \'react\';', 
-          `import React, { ${needsHooks.join(', ')} } from 'react';`
-        );
+      if (code.includes("useEffect") && !code.includes("{ useEffect")) {
+        needsHooks.push("useEffect");
       }
 
+      if (needsHooks.length > 0) {
+        code = code.replace(
+          "import React from 'react';",
+          `import React, { ${needsHooks.join(", ")} } from 'react';`
+        );
+      }
     }
-    
+
     setProcessedCode(code);
   }, [componentCode]);
 
   // Show a test component when no code is provided
-  const displayCode = processedCode || `import React from 'react';
+  const displayCode =
+    processedCode ||
+    `import React from 'react';
 
 export default function EmptyState() {
   return (
@@ -85,10 +108,22 @@ export default function EmptyState() {
 }`;
 
   // Create a simple App component that renders the user's component
+  const translationEntries = Object.entries(translations)
+    .map(([key, value]) => `    '${key}': '${value.replace(/'/g, "\\'")}'`)
+    .join(",\n");
+
   const appCode = `import React from 'react';
 import Component from './Component';
 
 export default function App() {
+  // Translation function for the isolated Sandpack environment
+  const t = (key) => {
+    const translations = {
+${translationEntries}
+    };
+    return translations[key] || key;
+  };
+  
   const demoProps = {
     items: [
       { label: 'Home', href: '#home' },
@@ -96,15 +131,16 @@ export default function App() {
       { label: 'Services', href: '#services' },
       { label: 'Contact', href: '#contact' }
     ],
-    children: 'Click me',
+    children: t('click_me') || 'Click me',
     onClick: () => console.log('Button clicked!'),
-    title: 'Demo Title',
-    description: 'This is a demo description.',
-    placeholder: 'Enter text here...',
-    text: 'Demo text',
-    name: 'Demo Name',
-    value: 'Demo Value',
-    locale: '${currentLocale}'
+    title: t('demo_title') || 'Demo Title',
+    description: t('demo_description') || 'This is a demo description.',
+    placeholder: t('enter_text_here') || 'Enter text here...',
+    text: t('demo_text') || 'Demo text',
+    name: t('demo_name') || 'Demo Name',
+    value: t('demo_value') || 'Demo Value',
+    locale: '${currentLocale}',
+    t: t
   };
 
   try {
@@ -127,27 +163,29 @@ export default function App() {
     <div className="h-full flex flex-col">
       <div className="border-b border-gray-200 dark:border-gray-700 p-4 flex-shrink-0">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Live Preview</h2>
-          <LocaleSelector 
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+            Live Preview
+          </h2>
+          <LocaleSelector
             currentLocale={currentLocale}
             onLocaleChange={setCurrentLocale}
           />
         </div>
       </div>
-      
-      <div className="flex-1 min-h-0" style={{ height: '100%', width: '100%' }}>
+
+      <div className="flex-1 min-h-0" style={{ height: "100%", width: "100%" }}>
         <SandpackProvider
           template="react"
           theme="light"
           files={{
-            '/App.js': appCode,
-            '/Component.js': displayCode,
-            '/styles.css': `
+            "/App.js": appCode,
+            "/Component.js": displayCode,
+            "/styles.css": `
               @tailwind base;
               @tailwind components;
               @tailwind utilities;
             `,
-            'postcss.config.js': `
+            "postcss.config.js": `
               module.exports = {
                 plugins: {
                   tailwindcss: {},
@@ -155,7 +193,7 @@ export default function App() {
                 },
               }
             `,
-            'tailwind.config.js': `
+            "tailwind.config.js": `
               module.exports = {
                 content: [
                   './pages/**/*.{js,ts,jsx,tsx}',
@@ -169,22 +207,22 @@ export default function App() {
             `,
           }}
           style={{
-            height: '100%',
-            width: '100%',
-            border: 'none',
-            borderRadius: '0'
+            height: "100%",
+            width: "100%",
+            border: "none",
+            borderRadius: "0",
           }}
           options={{
             autorun: true,
-            externalResources: ['https://cdn.tailwindcss.com'],
+            externalResources: ["https://cdn.tailwindcss.com"],
           }}
         >
           <SandpackPreview
-            style={{ 
-              height: '100%', 
-              width: '100%',
-              border: 'none',
-              borderRadius: '0'
+            style={{
+              height: "100%",
+              width: "100%",
+              border: "none",
+              borderRadius: "0",
             }}
             showOpenInCodeSandbox={false}
             showRefreshButton={true}
@@ -194,4 +232,4 @@ export default function App() {
       </div>
     </div>
   );
-} 
+}
